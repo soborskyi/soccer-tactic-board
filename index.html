@@ -249,12 +249,14 @@
     const boardInner = document.getElementById('board-inner');
     const pinListTop = document.getElementById('pin-list-top');
     const pinListBottom = document.getElementById('pin-list-bottom');
+
     // --- Drag and Drop State ---
     let draggingPin = null;
     let offsetX = 0, offsetY = 0;
 
-    // --- Pin List Drag Setup ---
+    // --- Pin List Drag Setup (Desktop + Touch) ---
     function setupPinListDrag(pinList) {
+      // Desktop drag
       pinList.addEventListener('dragstart', e => {
         if (e.target.classList.contains('pin')) {
           draggingPin = e.target;
@@ -263,11 +265,67 @@
         }
       });
       pinList.addEventListener('dragend', () => { draggingPin = null; });
+
+      // Touch drag for mobile
+      pinList.addEventListener('touchstart', function(e) {
+        const touch = e.touches[0];
+        const pin = e.target.closest('.pin');
+        if (!pin) return;
+        // Create a floating clone to follow the finger
+        const clone = pin.cloneNode(true);
+        clone.style.position = 'fixed';
+        clone.style.left = (touch.clientX - pin.offsetWidth / 2) + 'px';
+        clone.style.top = (touch.clientY - pin.offsetHeight / 2) + 'px';
+        clone.style.zIndex = 9999;
+        clone.style.pointerEvents = 'none';
+        clone.classList.add('dragging');
+        document.body.appendChild(clone);
+        draggingPin = pin;
+        let lastTouch = { x: touch.clientX, y: touch.clientY };
+        function moveClone(ev) {
+          if (ev.touches.length !== 1) return;
+          const t = ev.touches[0];
+          clone.style.left = (t.clientX - pin.offsetWidth / 2) + 'px';
+          clone.style.top = (t.clientY - pin.offsetHeight / 2) + 'px';
+          lastTouch = { x: t.clientX, y: t.clientY };
+          ev.preventDefault();
+        }
+        function dropClone(ev) {
+          document.body.removeChild(clone);
+          // Place pin on board if dropped over field
+          const boardRect = board.getBoundingClientRect();
+          if (
+            lastTouch.x >= boardRect.left && lastTouch.x <= boardRect.right &&
+            lastTouch.y >= boardRect.top && lastTouch.y <= boardRect.bottom
+          ) {
+            const { offsetX: fieldOffsetX, offsetY: fieldOffsetY, fieldW, fieldH } = getFieldOffsetAndSize();
+            let x = lastTouch.x - boardRect.left - fieldOffsetX - pin.offsetWidth / 2;
+            let y = lastTouch.y - boardRect.top - fieldOffsetY - pin.offsetHeight / 2;
+            x = Math.max(0, Math.min(x, fieldW - pin.offsetWidth));
+            y = Math.max(0, Math.min(y, fieldH - pin.offsetHeight));
+            const newPin = pin.cloneNode(true);
+            newPin.style.left = (fieldOffsetX + x) + 'px';
+            newPin.style.top = (fieldOffsetY + y) + 'px';
+            newPin.classList.remove('dragging');
+            newPin.setAttribute('draggable', 'false');
+            makePinDraggable(newPin);
+            boardInner.appendChild(newPin);
+          }
+          draggingPin = null;
+          window.removeEventListener('touchmove', moveClone);
+          window.removeEventListener('touchend', dropClone);
+          window.removeEventListener('touchcancel', dropClone);
+        }
+        window.addEventListener('touchmove', moveClone, { passive: false });
+        window.addEventListener('touchend', dropClone);
+        window.addEventListener('touchcancel', dropClone);
+        e.preventDefault();
+      }, { passive: false });
     }
     setupPinListDrag(pinListTop);
     setupPinListDrag(pinListBottom);
 
-    // --- Board Drag and Drop ---
+    // --- Board Drag and Drop (Desktop only) ---
     board.addEventListener('dragover', e => e.preventDefault());
     board.addEventListener('drop', e => {
       e.preventDefault();
@@ -288,11 +346,13 @@
       }
     });
 
-    // --- Make Pins Draggable on Board ---
+    // --- Make Pins Draggable on Board (Mouse + Touch) ---
     function makePinDraggable(pin) {
       let isDragging = false, startX, startY, origX, origY;
+
       // Mouse events
       pin.addEventListener('mousedown', e => {
+        if (e.button !== 0) return;
         isDragging = true;
         pin.classList.add('dragging');
         startX = e.clientX;
@@ -301,20 +361,23 @@
         origY = parseInt(pin.style.top, 10);
         document.body.style.userSelect = 'none';
       });
-      document.addEventListener('mousemove', e => {
+      window.addEventListener('mousemove', onMouseMove);
+      window.addEventListener('mouseup', onMouseUp);
+      function onMouseMove(e) {
         if (isDragging) {
           const dx = e.clientX - startX;
           const dy = e.clientY - startY;
           movePinWithinField(pin, origX + dx, origY + dy);
         }
-      });
-      document.addEventListener('mouseup', () => {
+      }
+      function onMouseUp() {
         if (isDragging) {
           isDragging = false;
           pin.classList.remove('dragging');
           document.body.style.userSelect = '';
         }
-      });
+      }
+
       // Touch events
       pin.addEventListener('touchstart', e => {
         if (e.touches.length !== 1) return;
@@ -327,14 +390,17 @@
         document.body.style.userSelect = 'none';
         e.preventDefault();
       }, { passive: false });
-      document.addEventListener('touchmove', e => {
+      window.addEventListener('touchmove', onTouchMove, { passive: false });
+      window.addEventListener('touchend', endTouchDrag);
+      window.addEventListener('touchcancel', endTouchDrag);
+      function onTouchMove(e) {
         if (isDragging && e.touches.length === 1) {
           const dx = e.touches[0].clientX - startX;
           const dy = e.touches[0].clientY - startY;
           movePinWithinField(pin, origX + dx, origY + dy);
           e.preventDefault();
         }
-      }, { passive: false });
+      }
       function endTouchDrag() {
         if (isDragging) {
           isDragging = false;
@@ -342,10 +408,9 @@
           document.body.style.userSelect = '';
         }
       }
-      document.addEventListener('touchend', endTouchDrag);
-      document.addEventListener('touchcancel', endTouchDrag);
     }
-    // Helper to constrain pin within field
+
+    // --- Helper: Constrain pin within field ---
     function movePinWithinField(pin, left, top) {
       const { offsetX, offsetY, fieldW, fieldH } = getFieldOffsetAndSize();
       const pinW = pin.offsetWidth, pinH = pin.offsetHeight;
@@ -357,7 +422,7 @@
 
     // --- Clear All Pins ---
     function clearBoardPins() {
-      boardInner.querySelectorAll('.pin').forEach(pin => pin.remove());
+      boardInner.innerHTML = '';
     }
 
     // --- Field Offset and Size Helper ---
