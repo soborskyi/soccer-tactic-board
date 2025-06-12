@@ -290,8 +290,8 @@
           lastTouch = { x: t.clientX, y: t.clientY };
           ev.preventDefault();
         }
-        function dropClone(ev) {
-          document.body.removeChild(clone);
+        function dropClone() {
+          if (clone.parentNode) document.body.removeChild(clone);
           // Place pin on board if dropped over field
           const boardRect = board.getBoundingClientRect();
           if (
@@ -361,8 +361,6 @@
         origY = parseInt(pin.style.top, 10);
         document.body.style.userSelect = 'none';
       });
-      window.addEventListener('mousemove', onMouseMove);
-      window.addEventListener('mouseup', onMouseUp);
       function onMouseMove(e) {
         if (isDragging) {
           const dx = e.clientX - startX;
@@ -377,6 +375,8 @@
           document.body.style.userSelect = '';
         }
       }
+      window.addEventListener('mousemove', onMouseMove);
+      window.addEventListener('mouseup', onMouseUp);
 
       // Touch events
       pin.addEventListener('touchstart', e => {
@@ -390,9 +390,6 @@
         document.body.style.userSelect = 'none';
         e.preventDefault();
       }, { passive: false });
-      window.addEventListener('touchmove', onTouchMove, { passive: false });
-      window.addEventListener('touchend', endTouchDrag);
-      window.addEventListener('touchcancel', endTouchDrag);
       function onTouchMove(e) {
         if (isDragging && e.touches.length === 1) {
           const dx = e.touches[0].clientX - startX;
@@ -408,6 +405,9 @@
           document.body.style.userSelect = '';
         }
       }
+      window.addEventListener('touchmove', onTouchMove, { passive: false });
+      window.addEventListener('touchend', endTouchDrag);
+      window.addEventListener('touchcancel', endTouchDrag);
     }
 
     // --- Helper: Constrain pin within field ---
