@@ -18,39 +18,44 @@
     body {
       font-family: Arial, sans-serif;
       background: #222;
-      margin: 0;
-      padding: 0;
       display: flex;
       flex-direction: column;
       align-items: center;
       min-height: 100vh;
-      height: 100vh;
       box-sizing: border-box;
-      overflow: hidden;
     }
     .main-layout {
       display: flex;
       flex-direction: column;
       height: 100vh;
       width: 100vw;
-      min-height: 100vh;
-      min-width: 100vw;
       justify-content: space-between;
       align-items: center;
       overflow: hidden;
     }
+    /* Use 100dvh for mobile browsers that support it */
+    @supports (height: 100dvh) {
+      html, body {
+        height: 100dvh;
+        min-height: 100dvh;
+      }
+      body {
+        min-height: 100dvh;
+      }
+      .main-layout {
+        height: 100dvh;
+      }
+    }
     .team-controls {
-      margin: 0 !important;
+      margin: 0;
     }
     .board-container {
       flex: 1 1 auto;
-      margin: 4px 0 !important;
-      /* Set a fixed aspect ratio for the field */
-      aspect-ratio: 2.1 / 3; /* width / height, typical soccer field */
+      margin: 4px 0;
+      aspect-ratio: 2.1 / 3;
       max-width: 98vw;
       max-height: 80vh;
       width: min(400px, 98vw, 80vh * 0.7);
-      height: auto;
       min-width: 180px;
       min-height: 180px;
       box-sizing: border-box;
@@ -62,8 +67,6 @@
     #soccer-field {
       width: 100%;
       height: 100%;
-      max-width: 100%;
-      max-height: 100%;
       object-fit: contain;
       display: block;
       user-select: none;
@@ -98,7 +101,7 @@
       box-shadow: 0 2px 8px rgba(0,0,0,0.2);
       z-index: 2;
       transition: box-shadow 0.2s;
-      background: #e53935; /* fallback for team2 */
+      background: #e53935;
       pointer-events: auto;
     }
     .pin.dragging {
@@ -106,13 +109,14 @@
       opacity: 0.8;
     }
     .pin-list, .preset-list {
-      margin: 2px 0 0 0 !important;
-      gap: 6px !important;
+      margin: 2px 0 0 0;
+      gap: 6px;
     }
     .pin-list {
       display: flex;
-      gap: 8px !important;
-      margin: 8px 0 0 0 !important;
+      gap: 8px;
+      margin: 8px 0 0 0;
+      justify-content: center;
     }
     .pin-list .pin {
       position: static;
@@ -175,8 +179,6 @@
       .main-layout {
         height: 100vh;
         width: 100vw;
-        min-height: 100vh;
-        min-width: 100vw;
       }
       .board-container {
         aspect-ratio: 2.1 / 3;
@@ -199,15 +201,14 @@
         min-height: 80px;
       }
     }
-    /* JS: Calculate pin positions relative to board size */
   </style>
 </head>
 <body>
   <div class="main-layout">
-    <h1 style="color:#fff; margin: 8px 0 2px 0; font-size: 1.2em;">Soccer Tactic Board</h1>
-    <!-- Top team controls (moved above field, close to field) -->
-    <div class="team-controls" style="margin-bottom:0;">
-      <div class="pin-list" id="pin-list-top" style="justify-content:center;">
+    <h1 class="title">Soccer Tactic Board</h1>
+    <!-- Top team controls -->
+    <div class="team-controls">
+      <div class="pin-list" id="pin-list-top">
         <div class="pin team2" draggable="true" data-pin="T2">T2</div>
         <div class="pin goalie" draggable="true" data-pin="G">G</div>
         <div class="pin ball" draggable="true" data-pin="Ball">⚽</div>
@@ -219,9 +220,9 @@
       <img id="soccer-field" src="soccer-field.jpg" alt="Soccer Field">
       <div class="board-inner" id="board-inner"></div>
     </div>
-    <!-- Bottom team controls (moved just below field, close to field) -->
-    <div class="team-controls" style="margin-top:0;">
-      <div class="pin-list" id="pin-list-bottom" style="justify-content:center;">
+    <!-- Bottom team controls -->
+    <div class="team-controls">
+      <div class="pin-list" id="pin-list-bottom">
         <div class="pin team1" draggable="true" data-pin="T1">T1</div>
         <div class="pin goalie" draggable="true" data-pin="G">G</div>
         <div class="pin ball" draggable="true" data-pin="Ball">⚽</div>
@@ -229,51 +230,40 @@
         <span class="formation-label" id="preset-312-team1">3-1-2</span>
       </div>
     </div>
-    <div class="preset-list" style="margin:4px 0 0 0; justify-content:center;">
+    <div class="preset-list">
       <span class="formation-label clear" id="preset-empty">Clear Field</span>
     </div>
   </div>
   <script>
+    // --- DOM Elements ---
     const board = document.getElementById('board');
     const boardInner = document.getElementById('board-inner');
-    const preset7v7Team1Btn = document.getElementById('preset-7v7-team1');
-    const preset7v7Team2Btn = document.getElementById('preset-7v7-team2');
-    const presetEmptyBtn = document.getElementById('preset-empty');
-    const preset312Team1Btn = document.getElementById('preset-312-team1');
-    const preset312Team2Btn = document.getElementById('preset-312-team2');
+    const pinListTop = document.getElementById('pin-list-top');
+    const pinListBottom = document.getElementById('pin-list-bottom');
+    // --- Drag and Drop State ---
     let draggingPin = null;
-    let offsetX = 0;
-    let offsetY = 0;
+    let offsetX = 0, offsetY = 0;
 
-    // --- Drag from pin list to board ---
+    // --- Pin List Drag Setup ---
     function setupPinListDrag(pinList) {
-      pinList.addEventListener('dragstart', function(e) {
+      pinList.addEventListener('dragstart', e => {
         if (e.target.classList.contains('pin')) {
           draggingPin = e.target;
-          // Always use center of pin for drop offset
           offsetX = e.target.offsetWidth / 2;
           offsetY = e.target.offsetHeight / 2;
         }
       });
-      pinList.addEventListener('dragend', function() {
-        draggingPin = null;
-      });
+      pinList.addEventListener('dragend', () => { draggingPin = null; });
     }
-
-    const pinListTop = document.getElementById('pin-list-top');
-    const pinListBottom = document.getElementById('pin-list-bottom');
     setupPinListDrag(pinListTop);
     setupPinListDrag(pinListBottom);
 
-    board.addEventListener('dragover', function(e) {
-      e.preventDefault();
-    });
-
-    board.addEventListener('drop', function(e) {
+    // --- Board Drag and Drop ---
+    board.addEventListener('dragover', e => e.preventDefault());
+    board.addEventListener('drop', e => {
       e.preventDefault();
       if (draggingPin) {
         const { offsetX: fieldOffsetX, offsetY: fieldOffsetY, fieldW, fieldH } = getFieldOffsetAndSize();
-        // Use center of pin for drop
         let x = e.clientX - board.getBoundingClientRect().left - fieldOffsetX - draggingPin.offsetWidth / 2;
         let y = e.clientY - board.getBoundingClientRect().top - fieldOffsetY - draggingPin.offsetHeight / 2;
         x = Math.max(0, Math.min(x, fieldW - draggingPin.offsetWidth));
@@ -289,11 +279,10 @@
       }
     });
 
-    // --- Make pins on the board draggable ---
+    // --- Make Pins Draggable on Board ---
     function makePinDraggable(pin) {
-      let isDragging = false;
-      let startX, startY, origX, origY;
-      pin.addEventListener('mousedown', function(e) {
+      let isDragging = false, startX, startY, origX, origY;
+      pin.addEventListener('mousedown', e => {
         isDragging = true;
         pin.classList.add('dragging');
         startX = e.clientX;
@@ -302,7 +291,7 @@
         origY = parseInt(pin.style.top, 10);
         document.body.style.userSelect = 'none';
       });
-      document.addEventListener('mousemove', function(e) {
+      document.addEventListener('mousemove', e => {
         if (isDragging) {
           const dx = e.clientX - startX;
           const dy = e.clientY - startY;
@@ -310,7 +299,7 @@
           pin.style.top = (origY + dy) + 'px';
         }
       });
-      document.addEventListener('mouseup', function() {
+      document.addEventListener('mouseup', () => {
         if (isDragging) {
           isDragging = false;
           pin.classList.remove('dragging');
@@ -319,28 +308,20 @@
       });
     }
 
-    // --- Helper to clear all pins from the board ---
+    // --- Clear All Pins ---
     function clearBoardPins() {
-      Array.from(boardInner.querySelectorAll('.pin')).forEach(pin => pin.remove());
+      boardInner.querySelectorAll('.pin').forEach(pin => pin.remove());
     }
 
-    // --- Helper to get the actual field image offset and size inside the board ---
+    // --- Field Offset and Size Helper ---
     function getFieldOffsetAndSize() {
-      const field = document.getElementById('soccer-field');
-      const boardRect = board.getBoundingClientRect();
-      // The field image is set to width:100%; height:100%; object-fit:contain
-      // So, depending on aspect ratio, there may be letterboxing (blank space) on top/bottom or left/right
-      const boardW = board.offsetWidth;
-      const boardH = board.offsetHeight;
+      const boardW = board.offsetWidth, boardH = board.offsetHeight;
       const fieldAspect = 2.1 / 3;
-      let fieldW = boardW;
-      let fieldH = boardH;
+      let fieldW = boardW, fieldH = boardH;
       if (boardW / boardH > fieldAspect) {
-        // Board is wider than field aspect, so field is full height, centered horizontally
         fieldH = boardH;
         fieldW = boardH * fieldAspect;
       } else {
-        // Board is taller than field aspect, so field is full width, centered vertically
         fieldW = boardW;
         fieldH = boardW / fieldAspect;
       }
@@ -349,18 +330,15 @@
       return { offsetX, offsetY, fieldW, fieldH };
     }
 
-    // --- Helper to add a pin at a given position ---
+    // --- Add Pin at Position ---
     function addPin(type, label, left, top, isPercent = false) {
       const pin = document.createElement('div');
       pin.className = `pin ${type}`;
       pin.textContent = label;
       if (isPercent) {
-        // Place pins using percent of field image, not container
         const { offsetX, offsetY, fieldW, fieldH } = getFieldOffsetAndSize();
-        const pxLeft = offsetX + (left / 100) * fieldW;
-        const pxTop = offsetY + (top / 100) * fieldH;
-        pin.style.left = pxLeft + 'px';
-        pin.style.top = pxTop + 'px';
+        pin.style.left = offsetX + (left / 100) * fieldW + 'px';
+        pin.style.top = offsetY + (top / 100) * fieldH + 'px';
         pin.dataset.percent = '1';
         pin.dataset.left = left;
         pin.dataset.top = top;
@@ -373,38 +351,38 @@
       boardInner.appendChild(pin);
     }
 
-    // --- Responsive pin repositioning on resize ---
+    // --- Responsive Pin Repositioning ---
     function repositionPercentPins() {
       const { offsetX, offsetY, fieldW, fieldH } = getFieldOffsetAndSize();
-      Array.from(boardInner.querySelectorAll('.pin[data-percent="1"]')).forEach(pin => {
+      boardInner.querySelectorAll('.pin[data-percent="1"]').forEach(pin => {
         const left = parseFloat(pin.dataset.left);
         const top = parseFloat(pin.dataset.top);
-        pin.style.left = (offsetX + (left / 100) * fieldW) + 'px';
-        pin.style.top = (offsetY + (top / 100) * fieldH) + 'px';
+        pin.style.left = offsetX + (left / 100) * fieldW + 'px';
+        pin.style.top = offsetY + (top / 100) * fieldH + 'px';
       });
     }
     window.addEventListener('resize', repositionPercentPins);
     document.addEventListener('DOMContentLoaded', repositionPercentPins);
 
-    // --- Update formation presets to use percent positions ---
+    // --- Add Pin by Percent Helper ---
     function addPinPercent(type, label, leftPercent, topPercent) {
       addPin(type, label, leftPercent, topPercent, true);
     }
 
-    // --- Setup formation label click handlers ---
+    // --- Formation Preset Handlers ---
     function setupFormationLabel(labelId, handler) {
       document.getElementById(labelId).addEventListener('click', handler);
     }
-    setupFormationLabel('preset-7v7-team1', function() {
-      Array.from(boardInner.querySelectorAll('.pin.team1')).forEach(pin => pin.remove());
+    // Team 1: 2-3-1
+    setupFormationLabel('preset-7v7-team1', () => {
+      boardInner.querySelectorAll('.pin.team1').forEach(pin => pin.remove());
       // Remove only blue goalie (bottom half)
-      Array.from(boardInner.querySelectorAll('.pin.goalie')).forEach(pin => {
+      boardInner.querySelectorAll('.pin.goalie').forEach(pin => {
         const { offsetY, fieldH } = getFieldOffsetAndSize();
         const top = parseFloat(pin.style.top);
-        // Goalie is in bottom half if its center is below field midpoint
         if (top > offsetY + fieldH / 2) pin.remove();
       });
-      addPinPercent('goalie', 'G', 46.5, 94); // close to bottom
+      addPinPercent('goalie', 'G', 46.5, 94);
       addPinPercent('team1', 'T1', 25, 80);
       addPinPercent('team1', 'T1', 67.5, 80);
       addPinPercent('team1', 'T1', 15, 68);
@@ -413,16 +391,16 @@
       addPinPercent('team1', 'T1', 46.5, 52);
       repositionPercentPins();
     });
-    setupFormationLabel('preset-7v7-team2', function() {
-      Array.from(boardInner.querySelectorAll('.pin.team2')).forEach(pin => pin.remove());
+    // Team 2: 2-3-1
+    setupFormationLabel('preset-7v7-team2', () => {
+      boardInner.querySelectorAll('.pin.team2').forEach(pin => pin.remove());
       // Remove only red goalie (top half)
-      Array.from(boardInner.querySelectorAll('.pin.goalie')).forEach(pin => {
+      boardInner.querySelectorAll('.pin.goalie').forEach(pin => {
         const { offsetY, fieldH } = getFieldOffsetAndSize();
         const top = parseFloat(pin.style.top);
-        // Goalie is in top half if its center is above field midpoint
         if (top <= offsetY + fieldH / 2) pin.remove();
       });
-      addPinPercent('goalie', 'G', 46.5, 2); // top
+      addPinPercent('goalie', 'G', 46.5, 2);
       addPinPercent('team2', 'T2', 25, 14);
       addPinPercent('team2', 'T2', 67.5, 14);
       addPinPercent('team2', 'T2', 15, 28);
@@ -431,10 +409,11 @@
       addPinPercent('team2', 'T2', 46.5, 44);
       repositionPercentPins();
     });
-    setupFormationLabel('preset-312-team1', function() {
-      Array.from(boardInner.querySelectorAll('.pin.team1')).forEach(pin => pin.remove());
+    // Team 1: 3-1-2
+    setupFormationLabel('preset-312-team1', () => {
+      boardInner.querySelectorAll('.pin.team1').forEach(pin => pin.remove());
       // Remove only blue goalie (bottom half)
-      Array.from(boardInner.querySelectorAll('.pin.goalie')).forEach(pin => {
+      boardInner.querySelectorAll('.pin.goalie').forEach(pin => {
         const { offsetY, fieldH } = getFieldOffsetAndSize();
         const top = parseFloat(pin.style.top);
         if (top > offsetY + fieldH / 2) pin.remove();
@@ -448,10 +427,11 @@
       addPinPercent('team1', 'T1', 67.5, 52);
       repositionPercentPins();
     });
-    setupFormationLabel('preset-312-team2', function() {
-      Array.from(boardInner.querySelectorAll('.pin.team2')).forEach(pin => pin.remove());
+    // Team 2: 3-1-2
+    setupFormationLabel('preset-312-team2', () => {
+      boardInner.querySelectorAll('.pin.team2').forEach(pin => pin.remove());
       // Remove only red goalie (top half)
-      Array.from(boardInner.querySelectorAll('.pin.goalie')).forEach(pin => {
+      boardInner.querySelectorAll('.pin.goalie').forEach(pin => {
         const { offsetY, fieldH } = getFieldOffsetAndSize();
         const top = parseFloat(pin.style.top);
         if (top <= offsetY + fieldH / 2) pin.remove();
@@ -465,11 +445,8 @@
       addPinPercent('team2', 'T2', 67.5, 44);
       repositionPercentPins();
     });
-
-    // --- Clear field preset ---
-    document.getElementById('preset-empty').addEventListener('click', function() {
-      clearBoardPins();
-    });
+    // --- Clear Field ---
+    document.getElementById('preset-empty').addEventListener('click', clearBoardPins);
   </script>
 </body>
 </html>
